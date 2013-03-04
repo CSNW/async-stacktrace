@@ -194,3 +194,23 @@ The parameters of `ERR()` are:
 2. `callback` (optional) If the callback is set and an error is passed, it will call the callback with the modified stacktrace. Otherwise it will do nothing (the caller can pass the returned `err` object to the callback if desired).
 
 The return value is the `err` object passed as the first parameter (if it was passed as a string, it will be returned as a first-class `Error()` object).
+
+### Alternate Usage
+
+If all the work that is done in a function is done synchronously before an async call, it can be preferable to simply pass the callback directly to the async call, like this:
+
+```js
+function getUsers(db, callback) {
+  var sql = 'SELECT * FROM users';
+  db.query(sql, callback);
+}
+```
+
+`ERR()` can be used in this scenario as well. If it is passed a callback as its first argument, it will wrap the callback, caching the current stacktrace line. When the callback is executed, it will check for an error object and -- if one is exists -- it will add the cached stacktrace line to it:
+
+```js
+function getUsers(db, callback) {
+  var sql = 'SELECT * FROM users';
+  db.query(sql, ERR(callback));
+}
+```
