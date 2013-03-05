@@ -32,7 +32,7 @@ function ERR(err, callback, asyncStackLines)
       callback = err;
       return function(err) {
         if (err) {
-          err.stack += empty_frame + '\n' + asyncStackLines[0];
+          err.stack += '\n' + empty_frame + '\n' + asyncStackLines[1];
           return callback(err);
         }
         callback.apply(this, arguments);
