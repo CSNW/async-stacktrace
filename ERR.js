@@ -13,17 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-var header = "Async Stacktrace:";
-
-function ERR(err, callback, asyncStackLine)
+var empty_frame = '---------------------------------------------';
+function ERR(err, callback, asyncStackLines)
 {
   //there is a error
   if(err != null)
   {
     // determine the new stacktrace line
-    if (!asyncStackLine)
-      asyncStackLine = new Error().stack.split("\n")[2];
+    if (!asyncStackLines) {
+      asyncStackLines = new Error().stack.split("\n").slice(2);
+      asyncStackLines.unshift(empty_frame);
+    }
 
     //if only the callback function is passed
     if(typeof err == "function")
@@ -31,27 +31,18 @@ function ERR(err, callback, asyncStackLine)
       //wrap callback so ERR() is eventually called w/ the cached stacktrace line
       callback = err;
       return function(err) {
-        if (ERR(err, callback, asyncStackLine)) return;
+        if (err) {
+          err.stack += empty_frame + '\n' + asyncStackLines[0];
+          return callback(err);
+        }
         callback.apply(this, arguments);
       };
     }
     //if there is already a stacktrace avaiable
     else if(err.stack != null)
     {
-      //split stack by line
-      var stackParts = err.stack.split("\n");
-      
-      //check if there is already a header set, if not add one and a empty line
-      if(stackParts[0] != header)
-      {
-        stackParts.unshift(header,""); 
-      }
-      
-      //add a new stacktrace line
-      stackParts.splice(1,0,asyncStackLine);
-      
-      //join the stacktrace
-      err.stack = stackParts.join("\n");
+      //join the new stacktrace
+      err.stack += '\n' + asyncStackLines.join('\n')
     }
     //no stacktrace, so lets create an error out of this object
     else
