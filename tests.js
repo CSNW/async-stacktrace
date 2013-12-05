@@ -20,13 +20,13 @@ vows.describe('ERR function').addBatch({
   }
 }).addBatch({
   'when you call it without an error' : {
-    'it returns false' : function() {
-      assert.isFalse(ERR());
+    'it returns falsy' : function() {
+      assert(!ERR());
     }
   },
   'when you call it with an error' : {
-    'it returns true' : function() {
-      assert.isTrue(ERR(new Error(), emptyFunc));
+    'it returns truthy' : function() {
+      assert(ERR(new Error(), emptyFunc));
     }
   },
   'when you give it a callback and an error': {
@@ -37,19 +37,11 @@ vows.describe('ERR function').addBatch({
     }
   },
   'when you give it no callback and an error': {
-    'it throws the error' : function() {
+    'it returns the error (so it can be passed to the callback)' : function() {
       var wasThrown = false;
       
-      try
-      {
-        ERR(new Error());
-      }
-      catch(e)
-      {
-        wasThrown = true;
-      }
-      
-      assert.isTrue(wasThrown);
+      var err = new Error();
+      assert.equal(ERR(err), err);
     }
   },
   'when you call it with a string as an error' : {
@@ -95,6 +87,41 @@ vows.describe('ERR function').addBatch({
       var stackLinesAfter = err.stack.split("\n").length;
       
       assert.equal(stackLinesBefore+1, stackLinesAfter);
+    }
+  },
+  'when you call it with a callback as the only argument': {
+    'it returns a wrapped callback': function() {
+      var lineNumberRegex = /tests\.js:(\d+):\d+/;
+
+      var err = new Error();
+      var stackLinesBefore = err.stack.split("\n");
+      var syncLineNumber = lineNumberRegex.exec(stackLinesBefore[1])[1];
+
+      var stackLinesAfter;
+      var asyncLineNumber;
+      var wrappedCallback = ERR(function(_err) {
+        stackLinesAfter = _err.stack.split("\n");
+        asyncLineNumber = lineNumberRegex.exec(stackLinesAfter[1])[1];
+      });
+
+      wrappedCallback(err);
+      assert.equal(stackLinesBefore.length+3, stackLinesAfter.length);
+
+      // because `ERR(...)` is 6 lines after `new Error()` in this test
+      assert.equal(parseInt(asyncLineNumber), parseInt(syncLineNumber)+6);
+    }
+  },
+  'when you call it with a callback as the only argument then': {
+    'the wrapping does not interfere with `this` binding or passed args': function() {
+      var wrappedCallback = ERR(function(_err, arg1, arg2) {
+        assert.equal(this, "test_this");
+        assert.equal(err, null);
+        assert.equal(arg1, "arg1");
+        assert.equal(arg2, "arg2");
+      });
+
+      var err = null;
+      wrappedCallback.call("test_this", err, "arg1", "arg2");
     }
   }
 }).run();    
