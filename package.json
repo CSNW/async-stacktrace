@@ -3,8 +3,11 @@
   "description"       : "Improves node.js stacktraces and makes it easier to handle errors",
   "homepage"          : "https://github.com/Pita/async-stacktrace",
   "author"            : "Peter 'Pita' Martischka <petermartischka@googlemail.com>",
+  "scripts": {
+  	"test": "vows tests.js"
+  },
   "devDependencies"  : {
-                          "vows"      : "0.6.0"
+                          "vows"      : "0.7.0"
                         },
   "main"              : "./ERR",
   "version"           : "0.0.4"

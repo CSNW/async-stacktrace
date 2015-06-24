@@ -127,4 +127,4 @@ vows.describe('ERR function').addBatch({
       wrappedCallback.call("test_this", err, "arg1", "arg2");
     }
   }
-}).run();    
+}).export(module);    
