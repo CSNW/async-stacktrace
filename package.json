@@ -7,7 +7,7 @@
   	"test": "vows tests.js"
   },
   "devDependencies"  : {
-                          "vows"      : "0.7.0"
+                          "vows"      : "0.8.x"
                         },
   "main"              : "./ERR",
   "version"           : "0.0.4"
