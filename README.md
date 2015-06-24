@@ -1,216 +1,84 @@
-## Why classic stacktraces are not very helpful when dealing with async functions
+# The Problem
 
-Look at this example. `one` calls `two`, `two` calls `three`, and `three` calls `four`. All functions call the given callback asynchronous. `four` calls the callback with an error. `three` and `two` passes the error to their callback function and stop executing with `return`. `one` finally throws it 
+When an error occurs in a callback function, the callstack from the outer function is lost.
 
-```js
-function one()
-{
-   two(function(err){
-     if(err){
-       throw err;
-     }
-   
-     console.log("two finished");
-   });
-}
+For instance in node:
 
-function two(callback)
-{
-  setTimeout(function () { 
-    three(function(err)
-    {
-      if(err) {
-        callback(err);
-        return;
-      }
-      
-      console.log("three finished");
-      callback();
-    });
-  }, 0);
-}
+```javascript
+readMetadata('company1', onCompanyData);
+readMetadata('company2', onCompanyData);
+readMetadata('company3', onCompanyData);
 
-function three(callback)
-{
-  setTimeout(function () { 
-    four(function(err)
-    {
-      if(err) {
-        callback(err);
-        return;
-      } 
-      
-      console.log("four finished");
-      callback();
-    });
-  }, 0);
-}
+function readMetadata(company_id, callback) {
+  fs.readFile(company_id + '.json', {encoding: 'utf8'}, function(err, str) {
+    if (err)
+      return callback(err);
 
-function four(callback)
-{
-  setTimeout(function(){
-    callback(new Error());
-  }, 0);
-}
-
-one();
-```
-
-### When you execute it, you will get this:
-
-```
-$ node example_without.js 
-
-/home/pita/Code/async-stacktrace/example_without.js:5
-       throw err;
-       ^
-Error
-    at Timer.callback (/home/pita/Code/async-stacktrace/example_without.js:47:14)
-```
-
-### The problems here are:
-
-* You can see that the error happend in `four`, but you can't see from where `four` was called. The context gets lost
-* You write the same 4 lines over and over again, just to handle errors
-
-## The solution
-
-### Lets replace this code in `two` and `three` 
-
-```js
-if(err) {
-  callback(err);
-  return;
+    callback(JSON.parse(str));
+  });
 }
 ```
 
-### with
+If one of the 3 JSON files is nonexistent or malformed, the error thrown by `JSON.parse()` would not tell us which of the 3 calls to `readMetadata()` caused the error, since this callback function is running in a fresh stack.
 
-```js
-if(ERR(err, callback)) return;
-```
+The same thing happens to us in the browser, for instance if we used AJAX to pull the 3 metadata files:
 
-### and replace this code in `one`
+```javascript
+readMetadata('company1', onCompanyData);
+readMetadata('company2', onCompanyData);
+readMetadata('company3', onCompanyData);
 
-```js
-if(err){
-  throw err;
+function readMetadata(company_id, callback) {
+  $.ajax(company_id + '.json', { success: function(str) {
+    callback(JSON.parse(str));
+  }});
 }
 ```
 
-### with
+# Previous Solutions
 
-```js
-ERR(err);
-```
+https://github.com/mattinsler/longjohn addresses this problem in a transparent way by hooking into lower-level node.js code, collecting a lot of data and automatically appending it to the stack property of errors. However, this approach is not performant enough to be used in production, which is the environment where detailed error stacks are the most valuable:
 
-### This is how it looks like now: 
+> it is not recommended to use longjohn in production. The data collection puts a lot of strain on V8's garbage collector and can greatly slow down heavily-loaded applications.
 
-```js
-var ERR = require("async-stacktrace");
+https://github.com/CrabDude/trycatch addresses this problem in a similar (though perhaps more performant?) manner, shimming all native I/O calls. Because of this, it must be required and configured before any other modules.
 
-function one()
-{
-   two(function(err){
-     ERR(err);
-   
-     console.log("two finished");
-   });
-}
+Neither of these solutions work in the browser and both of them monkeypatch node.js builtins, which is dangerous because it could break with newer versions of node.js or it could be incompatible with other code that monkeypatches builtins.
 
-function two(callback)
-{
-  setTimeout(function () { 
-    three(function(err)
-    {
-      if(ERR(err, callback)) return;
-      
-      console.log("three finished");
-      callback();
-    });
-  }, 0);
-}
+# A More Explicit Approach
 
-function three(callback)
-{
-  setTimeout(function () { 
-    four(function(err)
-    {
-      if(ERR(err, callback)) return;
-      
-      console.log("four finished");
-      callback();
-    });
-  }, 0);
-}
+async-stacktraces takes a more explicit, less invasive approach. Instead of shimming all I/O calls to automatically append stack traces to errors, you explicitly call it in your error handling. This is also more performant, since the stacks are only generated when an error occurs. Here is how the above code would look with async-stacktrace:
 
-function four(callback)
-{
-  setTimeout(function(){
-    callback(new Error());
-  }, 0);
-}
+```javascript
+var trace = require('async-stacktrace');
 
-one();
-```
+readMetadata('company1', trace(onCompanyData));
+readMetadata('company2', trace(onCompanyData));
+readMetadata('company3', trace(onCompanyData));
 
-### When you execute it, you will get this:
+function readMetadata(company_id, callback) {
+  fs.readFile(company_id + '.json', {encoding: 'utf8'}, function(err, str) {
+    if (err)
+      return callback(trace(err));
 
-```
-$ node example.js 
-
-/home/pita/Code/async-stacktrace/ERR.js:57
-      throw err;
-      ^
-Async Stacktrace:
-    at /home/pita/Code/async-stacktrace/example.js:6:6
-    at /home/pita/Code/async-stacktrace/example.js:17:10
-    at /home/pita/Code/async-stacktrace/example.js:30:10
-
-Error
-    at Timer.callback (/home/pita/Code/async-stacktrace/example.js:41:14)
-```
-
-### What is new?
-
-The "Async Stacktrace" shows you where this error was caught and passed to the next callback. This allows you to see from where `four` was called. You also have less code to write
-
-## npm
-```
-npm install async-stacktrace
-```
-
-## Usage
-
-This is how you require the ERR function
-
-```js
-var ERR = require("async-stacktrace");
-```
-
-The parameters of `ERR()` are: 
-
-1. `err` The error object (can be a string that describes the error too)
-2. `callback` (optional) If the callback is set and an error is passed, it will call the callback with the modified stacktrace. Otherwise it will do nothing (the caller can pass the returned `err` object to the callback if desired).
-
-The return value is the `err` object passed as the first parameter (if it was passed as a string, it will be returned as a first-class `Error()` object).
-
-### Alternate Usage
-
-If all the work that is done in a function is done synchronously before an async call, it can be preferable to simply pass the callback directly to the async call, like this:
-
-```js
-function getUsers(db, callback) {
-  var sql = 'SELECT * FROM users';
-  db.query(sql, callback);
+    callback(JSON.parse(str));
+  });
 }
 ```
 
-`ERR()` can be used in this scenario as well. If it is passed a callback as its first argument, it will wrap the callback, caching the current stacktrace line. When the callback is executed, it will check for an error object and -- if one is exists -- it will add the cached stacktrace line to it:
+The downside is that you have to wrap callback functions and errors passed to callback functions with `trace()`. However, in many cases, this is a small price to pay for performant, non-invasive long stack traces.
 
-```js
-function getUsers(db, callback) {
-  var sql = 'SELECT * FROM users';
-  db.query(sql, ERR(callback));
-}
+# How It Works
+
+If it is passed an error object, the `trace()` function decorates that error with the current stacktrace. As you pass the error back up the chain, from callback to callback, these stacks get appended to the error object.
+
+If it is passed a callback function, the `trace()` function caches the current stacktrace and wraps the callback in a function that checks for an error and decorates it with the cached stacktrace before passing it along.
+
+Wrapping a callback function in `trace()` is less performant because it caches the stack even in non-error situations, so if you're running it in a tight loop and hit performance problems you can revert to the other form by wrapping the callback in a function:
+
+```javascript
+readMetadata('company1', function(err, data) {
+  if (err) return trace(err);
+  onCompanyData(data);
+});
 ```
