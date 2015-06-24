@@ -67,18 +67,19 @@ vows.describe('ERR function').addBatch({
       
       var stackLinesAfter = errorAfter.stack.split("\n").length;
       
-      assert.equal(stackLinesBefore+3, stackLinesAfter);
+      var delimiter = 1;
+      var num_lines_stripped = 2;
+      assert.equal(stackLinesAfter, stackLinesBefore + delimiter + (stackLinesBefore - num_lines_stripped));
     }
   },
   'when you give it a async stacktrace': {
     'it adds a new stack line' : function(){
       var err = new Error();
+      var stackLinesBefore = err.stack.split("\n").length;
       
       ERR(err, function(_err){
         err = _err;
       });
-      
-      var stackLinesBefore = err.stack.split("\n").length;
       
       ERR(err, function(_err){
         err = _err;
@@ -86,7 +87,9 @@ vows.describe('ERR function').addBatch({
       
       var stackLinesAfter = err.stack.split("\n").length;
       
-      assert.equal(stackLinesBefore+1, stackLinesAfter);
+      var delimiter = 1;
+      var num_lines_stripped = 2;
+      assert.equal(stackLinesAfter, stackLinesBefore + delimiter + (stackLinesBefore - num_lines_stripped) + delimiter + (stackLinesBefore - num_lines_stripped));
     }
   },
   'when you call it with a callback as the only argument': {
