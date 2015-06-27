@@ -92,7 +92,7 @@ If you run into performance problems with this API because it is called in a hot
 
 ```javascript
 asyncLoadData('{"name": "company 1"}', function(err, data) {
-  if (err) return trace(err);
-  onCompanyData(data);
+  if (err) return onCompanyData(trace(err));
+  onCompanyData(null, data);
 });
 ```
