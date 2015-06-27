@@ -67,18 +67,19 @@ vows.describe('ERR function').addBatch({
       
       var stackLinesAfter = errorAfter.stack.split("\n").length;
       
-      assert.equal(stackLinesBefore+3, stackLinesAfter);
+      var delimiter = 1;
+      var num_lines_stripped = 2;
+      assert.equal(stackLinesAfter, stackLinesBefore + delimiter + (stackLinesBefore - num_lines_stripped));
     }
   },
   'when you give it a async stacktrace': {
     'it adds a new stack line' : function(){
       var err = new Error();
+      var stackLinesBefore = err.stack.split("\n").length;
       
       ERR(err, function(_err){
         err = _err;
       });
-      
-      var stackLinesBefore = err.stack.split("\n").length;
       
       ERR(err, function(_err){
         err = _err;
@@ -86,7 +87,9 @@ vows.describe('ERR function').addBatch({
       
       var stackLinesAfter = err.stack.split("\n").length;
       
-      assert.equal(stackLinesBefore+1, stackLinesAfter);
+      var delimiter = 1;
+      var num_lines_stripped = 2;
+      assert.equal(stackLinesAfter, stackLinesBefore + delimiter + (stackLinesBefore - num_lines_stripped) + delimiter + (stackLinesBefore - num_lines_stripped));
     }
   },
   'when you call it with a callback as the only argument': {
@@ -101,11 +104,14 @@ vows.describe('ERR function').addBatch({
       var asyncLineNumber;
       var wrappedCallback = ERR(function(_err) {
         stackLinesAfter = _err.stack.split("\n");
-        asyncLineNumber = lineNumberRegex.exec(stackLinesAfter[1])[1];
+        asyncLineNumber = lineNumberRegex.exec(stackLinesAfter[stackLinesAfter.length - 1])[1];
       });
 
       wrappedCallback(err);
-      assert.equal(stackLinesBefore.length+3, stackLinesAfter.length);
+
+      var delimiter = 1;
+      var num_new_lines = 1;
+      assert.equal(stackLinesAfter.length, stackLinesBefore.length + delimiter + num_new_lines);
 
       // because `ERR(...)` is 6 lines after `new Error()` in this test
       assert.equal(parseInt(asyncLineNumber), parseInt(syncLineNumber)+6);
@@ -124,4 +130,4 @@ vows.describe('ERR function').addBatch({
       wrappedCallback.call("test_this", err, "arg1", "arg2");
     }
   }
-}).run();    
+}).export(module);    
