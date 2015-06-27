@@ -13,9 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+(function(exports) {
+var global = this;
+
 var empty_frame = '---------------------------------------------';
-function ERR(err, callback, asyncStackLines)
-{
+function asyncStacktrace(err, callback, asyncStackLines) {
   //there is a error
   if(err != null)
   {
@@ -60,4 +62,9 @@ function ERR(err, callback, asyncStackLines)
   return err;
 }
 
-module.exports = ERR;
+if (typeof module != 'undefined')
+  module.exports = asyncStacktrace;
+else
+  global.asyncStacktrace = asyncStacktrace;
+
+})(this);
